@@ -30,6 +30,7 @@ read and write .bmp files as images
 *)
 
 //[TODO] run the code below
+open System.Collections.Generic
 open System.IO
 open System.Drawing
 
@@ -42,10 +43,17 @@ let output = Path.Combine(root,"masterpieces")
 
 let img = @"klimt.bmp"
 
-let copy (dir:Dir) (name:Img) = 
-    let path = Path.Combine(dir,name)
-    let bitmap = new Bitmap(path)
-    let newPath = Path.Combine(dir,"copy_" + name)
+let openImage (dir:Dir) (name:Img) =
+    new Bitmap(Path.Combine(dir, name))
+
+let newImagePath (dir:Dir) (modifier: string) (name:Img) =
+    Path.Combine(dir,modifier + name)
+
+
+
+let copy (dir:Dir) (name:Img) =
+    let bitmap = openImage dir name
+    let newPath = newImagePath dir "copy_" name
     bitmap.Save(newPath)
     
 copy paintings img
@@ -68,16 +76,15 @@ location x and y. Color is encoded as ARGB
 let tweaker (c:Color) =
     Color.FromArgb(int c.A,int c.B,0,int c.G)
 
-let tweak (from:Dir) (into:Dir) (name:Img) = 
-    let path = Path.Combine(from,name) 
-    let bitmap = new Bitmap(path)
+let tweak (from:Dir) (into:Dir) (name:Img) =
+    let bitmap = openImage from name
     let w,h = bitmap.Width, bitmap.Height
     for x in 0 .. (w-1) do
         for y in 0 .. (h-1) do
             let color = bitmap.GetPixel(x,y)
             let tweaked = tweaker color
             bitmap.SetPixel(x,y,tweaked)
-    let newPath = Path.Combine(into,"tweak_" + name)
+    let newPath = newImagePath into "tweak_" name
     bitmap.Save(newPath)
 
 tweak paintings output "davinci.bmp"
@@ -111,8 +118,8 @@ let painting2 = @"klimt.bmp"
 let mixer (c1:Color) (c2:Color) =
     Color.FromArgb(int c1.A,int (max c1.R c2.R),int (max c1.G c2.G),int (max c1.B c2.B))
 let hybrid (from:Dir) (into:Dir) (mix:Img) (target:Img) =
-    let bitmap = new Bitmap(Path.Combine(from,target) )
-    let mix = new Bitmap(Path.Combine(from,mix))
+    let bitmap = openImage from target
+    let mix = openImage from mix
     let w,h = bitmap.Width, bitmap.Height
     for x in 0 .. (w-1) do
         for y in 0 .. (h-1) do
@@ -120,7 +127,7 @@ let hybrid (from:Dir) (into:Dir) (mix:Img) (target:Img) =
             let noise  = mix.GetPixel(x,y)
             let tweaked = mixer origin noise
             bitmap.SetPixel(x,y,tweaked)
-    let newPath = Path.Combine(into,"mixed_" + target)
+    let newPath = newImagePath into "mixed_" target
     bitmap.Save(newPath)
 
 hybrid paintings output painting1 painting2
@@ -148,8 +155,37 @@ the same matching every pixel in both lists,
 //and vice-versa, painting4 from painting3.
 //They have the same width and height; for
 //different images you might have to be clever.
-let painting3 = @"painting3.bmp"
-let painting4 = @"painting4.bmp"
+let painting3 = @"bacon.bmp"
+let painting4 = @"picasso.bmp"
+
+let extractColors (bitmap:Bitmap) =
+    let w,h = bitmap.Width, bitmap.Height
+    Array.init (w * h) (fun (i:int) -> bitmap.GetPixel(i % w, i / w))
+    |> Array.sortBy (fun (color:Color) -> color.R)
+
+let createColorMap (originalColors: Color []) (mappedColors: Color []) =
+    let colorMap = new Dictionary<Color, Color>()
+    for i in 0 .. (originalColors.Length - 1) do
+        colorMap.[originalColors.[i]] <- mappedColors.[i]
+    colorMap
+
+let reconstruct (from:Dir) (into:Dir) (example:Img) (damaged:Img) =
+    let bitmap = openImage from damaged
+    let palette = openImage from example
+    let w,h = bitmap.Width, bitmap.Height
+    let bitmapColors = extractColors bitmap
+    let paletteColors = extractColors palette
+    let colorMap = createColorMap bitmapColors paletteColors
+    for x in 0 .. (w - 1) do
+        for y in 0 .. (h - 1) do
+            let origin = bitmap.GetPixel(x,y)
+            let reconstructed = colorMap.[origin]
+            bitmap.SetPixel(x, y, reconstructed)
+    let newPath = newImagePath into "reconstructed_" damaged
+    bitmap.Save(newPath)
+
+reconstruct paintings output painting4 painting3
+reconstruct paintings output painting3 painting4
 
 (*
 -------------------------------------------------
