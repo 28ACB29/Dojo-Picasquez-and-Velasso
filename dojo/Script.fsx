@@ -164,7 +164,7 @@ let extractColors (bitmap:Bitmap) =
     |> Array.sortBy (fun (color:Color) -> color.R)
 
 let createColorMap (originalColors: Color []) (mappedColors: Color []) =
-    let colorMap = new Dictionary<Color, Color>()
+    let colorMap = new Dictionary<Color, Color>(originalColors.Length)
     for i in 0 .. (originalColors.Length - 1) do
         colorMap.[originalColors.[i]] <- mappedColors.[i]
     colorMap
